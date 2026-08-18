@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# uv virtual environments
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
