@@ -9,4 +9,6 @@ def get_required_env(name: str) -> str:
 
     if not value:
         raise RuntimeError(f"Missing required environment variable: {name}")
-    return os.getenv(value)
+    return value
+
+DAILY_API_KEY = get_required_env("DAILY_API_KEY")
