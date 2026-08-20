@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>LiveKit Test</title>
+</head>
+
+<body>
+    <h1>LiveKit Connection Test</h1>
+    <button id="connect">Connect</button>
+    <p id="status">Disconnected</p>
+
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+
+    <script>
+        const status = document.getElementById("status");
+
+        document.getElementById("connect").onclick = async () => {
+            try {
+                status.textContent = "Requesting session...";
+
+                const response = await fetch(
+                    "http://127.0.0.1:8000/api/session/start",
+                    {
+                        method: "POST"
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error("Session endpoint failed");
+                }
+
+                const { url, token, room_name } = await response.json();
+
+                status.textContent = `Connecting to ${room_name}...`;
+
+                const room = new LivekitClient.Room();
+
+                room.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+                    if (track.kind === "audio") {
+                        const element = track.attach();
+                        document.body.appendChild(element);
+                    }
+                });
+
+                await room.connect(url, token);
+
+                status.textContent = `Connected to ${room.name}`;
+
+                await room.localParticipant.setMicrophoneEnabled(true);
+            } catch (error) {
+                console.error(error);
+                status.textContent = `Failed: ${error.message}`;
+            }
+        };
+    </script>
+</body>
+
+</html>

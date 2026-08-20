@@ -1,6 +1,133 @@
-def main():
-    print("Hello from bot!")
+import asyncio
+import argparse
 
+from .config import DEEPGRAM_API_KEY, GEMINI_API_KEY, LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+
+from livekit import api
+
+from pipecat.workers.runner import WorkerRunner
+from pipecat.pipeline.worker import PipelineWorker
+from pipecat.pipeline.worker import PipelineParams
+from pipecat.pipeline.pipeline import Pipeline
+from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.frames.frames import TTSSpeakFrame
+from pipecat.transports.livekit.transport import LiveKitTransport, LiveKitParams
+from pipecat.services.deepgram.stt import DeepgramSTTService
+from pipecat.services.google.llm import GoogleLLMService
+from pipecat.services.deepgram.tts import DeepgramTTSService
+from pipecat.processors.aggregators.llm_context import LLMContext
+from pipecat.processors.aggregators.llm_response_universal import LLMContextAggregatorPair
+
+def create_bot_token(room_name: str) -> str:
+    return (
+        api.AccessToken(
+            api_key=LIVEKIT_API_KEY,
+            api_secret=LIVEKIT_API_SECRET,
+        ).with_identity("rizzeptionist-bot") \
+        .with_name("Rizzeptionist") \
+        .with_grants(api.VideoGrants(
+            room_join=True,
+            room=room_name,
+        )).to_jwt()
+    )
+
+async def run_bot(room_name:str):
+    bot_token = create_bot_token(room_name)
+
+    # Setup the Transport Layer
+    transport = LiveKitTransport(
+        url = LIVEKIT_URL,
+        token = bot_token,
+        room_name=room_name,
+        params=LiveKitParams(
+            audio_in_enabled=True,
+            audio_out_enabled=True,
+            vad_analyzer=SileroVADAnalyzer(),
+        ),
+    )
+
+    stt = DeepgramSTTService(
+        api_key = DEEPGRAM_API_KEY
+    )
+
+    llm = GoogleLLMService(
+        api_key = GEMINI_API_KEY,
+        settings=GoogleLLMService.Settings(
+            model="gemini-3.5-flash-lite",
+        ),
+    )
+
+    tts = DeepgramTTSService(
+        api_key = DEEPGRAM_API_KEY,
+        settings=DeepgramTTSService.Settings(
+            voice="aura-2-helena-en"
+        )
+    )
+
+    context = LLMContext(
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a friendly voice assistant. "
+                    "Keep responses short and conversational."
+                ),
+            }
+        ]
+    )
+
+    context_aggregator = LLMContextAggregatorPair(context)
+
+    pipeline = Pipeline(
+        [
+            transport.input(),
+            stt,
+            context_aggregator.user(),
+            llm,
+            tts,
+            transport.output(),
+            context_aggregator.assistant()
+        ]
+    )
+
+    worker = PipelineWorker(
+        pipeline,
+        params=PipelineParams(
+            audio_in_sample_rate=16000,
+            audio_out_sample_rate=24000,
+            enable_metrics=True,
+        ),
+    )
+    
+    @transport.event_handler("on_first_participant_joined")
+    async def on_first_participant_joined(transport, participant_id):
+        print(f"Participant joined: {participant_id}")
+
+        await worker.queue_frame(
+            TTSSpeakFrame(
+                "Hello! I'm your voice assistant. How can I help you?"
+            )
+        )
+
+    @transport.event_handler("on_participant_left")
+    async def on_participant_left(transport, participant_id):
+        print(f"Participant left: {participant_id}")
+        await worker.cancel()
+
+    runner = WorkerRunner(handle_sigint=True)
+
+    await runner.add_workers(worker)
+    await runner.run()
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "room_name",
+        help="LiveKit room name to join",
+    )
+    return parser.parse_args()
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    asyncio.run(run_bot(args.room_name))
+

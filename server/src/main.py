@@ -1,60 +1,42 @@
-import time
-import httpx
-from fastapi import FastAPI, HTTPException
+from .config import LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL
 
-from .config import DAILY_API_KEY
+from fastapi import FastAPI
+from livekit import api
+from fastapi import HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-DAILY_API_URL = "https://api.daily.co/v1"
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://0.0.0.0:5500", "http://127.0.0.1:5500"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.post("/api/session/start")
 async def start_session():
-    expires_at = int(time.time()) + 900
+    room_name = "clinic-reception"
 
-    headers = {
-        "Authorization":f"Bearer {DAILY_API_KEY}",
-        "Content-Type":"application/json"
-    }
+    try:
+        # Create Token
+        token = api.AccessToken(
+            api_key=LIVEKIT_API_KEY,
+            api_secret=LIVEKIT_API_SECRET,
+        ).with_identity("rizzeptionist-user") \
+        .with_name("User") \
+        .with_grants(api.VideoGrants(
+            room_join=True,
+            room=room_name,
+        )).to_jwt()
 
-    async with httpx.AsyncClient() as client:
-        try:
-            # Create Daily Room
-            room_response = await client.post(
-                f"{DAILY_API_URL}/rooms",
-                headers = headers,
-                json={
-                    "properties": {
-                        "exp": expires_at,
-                    }
-                },
-                timeout = 10,
-            )
-            room_response.raise_for_status()
-            room = room_response.json()
-
-            # Create Token
-            token_response = await client.post(
-                f"{DAILY_API_URL}/meeting-tokens",
-                headers=headers,
-                json={
-                    "properties": {
-                        "room_name": room["name"],
-                        "exp": expires_at,
-                    }
-                },
-                timeout=10,
-            )
-            token_response.raise_for_status()
-            token = token_response.json()["token"]
-
-            # Return Room URL and Token to frontend
-            return{
-                "room_url": room["url"],
-                "token": token
-            }
-        except httpx.HTTPError:
-            raise HTTPException(
-                status_code=502,
-                detail = "Daily API request failed",
-            )
+        return {
+            "url": LIVEKIT_URL,
+            "token": token,
+            "room_name": room_name
+        }
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate LiveKit access token",
+        )
