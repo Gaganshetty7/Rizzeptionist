@@ -1,58 +1,158 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
-    <title>LiveKit Test</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Assistant</title>
 </head>
 
 <body>
-    <h1>LiveKit Connection Test</h1>
-    <button id="connect">Connect</button>
-    <p id="status">Disconnected</p>
+    <h1>Voice Assistant</h1>
+
+    <p id="status">Ready</p>
+
+    <button id="startCall">Start Call</button>
+    <button id="hangUp" disabled>Hang Up</button>
 
     <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
 
     <script>
-        const status = document.getElementById("status");
+        const API_URL = "http://127.0.0.1:8000";
 
-        document.getElementById("connect").onclick = async () => {
+        const status = document.getElementById("status");
+        const startButton = document.getElementById("startCall");
+        const hangUpButton = document.getElementById("hangUp");
+
+        let room = null;
+        let agentParticipant = null;
+
+        function setStatus(text) {
+            status.textContent = text;
+        }
+
+        startButton.addEventListener("click", async () => {
             try {
-                status.textContent = "Requesting session...";
+                startButton.disabled = true;
+                setStatus("Connecting...");
 
                 const response = await fetch(
-                    "http://127.0.0.1:8000/api/session/start",
+                    `${API_URL}/api/session/start`,
                     {
                         method: "POST"
                     }
                 );
 
                 if (!response.ok) {
-                    throw new Error("Session endpoint failed");
+                    throw new Error("Failed to start session");
                 }
 
-                const { url, token, room_name } = await response.json();
+                const { url, token, } = await response.json();
 
-                status.textContent = `Connecting to ${room_name}...`;
+                room = new LivekitClient.Room();
 
-                const room = new LivekitClient.Room();
+                // Receive the agent's audio track.
+                room.on(
+                    LivekitClient.RoomEvent.TrackSubscribed,
+                    (track, publication, participant) => {
+                        if (
+                            track.kind ===
+                            LivekitClient.Track.Kind.Audio
+                        ) {
+                            agentParticipant = participant;
 
-                room.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
-                    if (track.kind === "audio") {
-                        const element = track.attach();
-                        document.body.appendChild(element);
+                            const audioElement = track.attach();
+                            audioElement.autoplay = true;
+                            document.body.appendChild(audioElement);
+                        }
                     }
-                });
+                );
+
+                // Track whether the agent is actively speaking.
+                room.on(
+                    LivekitClient.RoomEvent.ActiveSpeakersChanged,
+                    (speakers) => {
+                        if (!agentParticipant) {
+                            setStatus("Listening");
+                            return;
+                        }
+
+                        const agentIsSpeaking = speakers.some(
+                            (participant) =>
+                                participant.identity ===
+                                agentParticipant.identity
+                        );
+
+                        setStatus(
+                            agentIsSpeaking
+                                ? "Agent speaking"
+                                : "Listening"
+                        );
+                    }
+                );
+
+                room.on(
+                    LivekitClient.RoomEvent.ParticipantDisconnected,
+                    (participant) => {
+                        if (
+                            agentParticipant &&
+                            participant.identity ===
+                            agentParticipant.identity
+                        ) {
+                            agentParticipant = null;
+                            setStatus("Agent disconnected");
+                        }
+                    }
+                );
+
+                room.on(
+                    LivekitClient.RoomEvent.Disconnected,
+                    () => {
+                        setStatus("Call ended");
+
+                        startButton.disabled = false;
+                        hangUpButton.disabled = true;
+
+                        room = null;
+                        agentParticipant = null;
+                    }
+                );
 
                 await room.connect(url, token);
 
-                status.textContent = `Connected to ${room.name}`;
+                // Create the microphone with the required
+                // audio-processing constraints.
+                const micTrack =
+                    await LivekitClient.createLocalAudioTrack({
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    });
 
-                await room.localParticipant.setMicrophoneEnabled(true);
+                await room.localParticipant.publishTrack(
+                    micTrack
+                );
+
+                setStatus("Listening");
+                hangUpButton.disabled = false;
+
             } catch (error) {
                 console.error(error);
-                status.textContent = `Failed: ${error.message}`;
+
+                setStatus(
+                    `Connection failed: ${error.message}`
+                );
+
+                startButton.disabled = false;
+                hangUpButton.disabled = true;
             }
-        };
+        });
+
+        hangUpButton.addEventListener("click", async () => {
+            if (room) {
+                await room.disconnect();
+            }
+        });
     </script>
 </body>
 

@@ -18,12 +18,12 @@ from pipecat.services.deepgram.tts import DeepgramTTSService
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import LLMContextAggregatorPair
 
-def create_bot_token(room_name: str) -> str:
+def create_agent_token(room_name: str) -> str:
     return (
         api.AccessToken(
             api_key=LIVEKIT_API_KEY,
             api_secret=LIVEKIT_API_SECRET,
-        ).with_identity("rizzeptionist-bot") \
+        ).with_identity("rizzeptionist-agent") \
         .with_name("Rizzeptionist") \
         .with_grants(api.VideoGrants(
             room_join=True,
@@ -31,13 +31,13 @@ def create_bot_token(room_name: str) -> str:
         )).to_jwt()
     )
 
-async def run_bot(room_name:str):
-    bot_token = create_bot_token(room_name)
+async def run_agent(room_name:str):
+    agent_token = create_agent_token(room_name)
 
     # Setup the Transport Layer
     transport = LiveKitTransport(
         url = LIVEKIT_URL,
-        token = bot_token,
+        token = agent_token,
         room_name=room_name,
         params=LiveKitParams(
             audio_in_enabled=True,
@@ -129,5 +129,5 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    asyncio.run(run_bot(args.room_name))
+    asyncio.run(run_agent(args.room_name))
 

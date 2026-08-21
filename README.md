@@ -1,10 +1,10 @@
 # Voice Agent
 
-A voice-agent application consisting of a Pipecat voice bot, a Python backend for appointment logic and database access, and a lightweight HTML/JavaScript frontend.
+A voice-agent application consisting of a Pipecat voice agent, a Python backend for appointment logic and database access, and a lightweight HTML/JavaScript frontend.
 
 ## Project Structure
 
-- `bot/` — Pipecat voice agent
+- `agent/` — Pipecat voice agent
 - `server/` — Backend API, appointment logic and database access
 - `web/` — HTML/CSS/JavaScript frontend
 
@@ -12,10 +12,10 @@ A voice-agent application consisting of a Pipecat voice bot, a Python backend fo
 
 > **Prerequisites:** Install [uv](https://docs.astral.sh/uv/getting-started/installation/) before proceeding.
 
-### Bot
+### Agent
 
 ```bash
-cd bot
+cd agent
 cp .env.example .env   # fill in your API keys
 uv sync
 uv run python src/main.py
@@ -48,8 +48,8 @@ Start each service in a separate shell:
 # Server
 cd server && uv sync && uv run uvicorn src.main:app --reload
 
-# Bot
-cd bot && uv sync && uv run python -m src.main clinic-reception
+# Agent
+cd agent && uv sync && uv run python -m src.main clinic-reception
 
 # Frontend
 python3 -m http.server 5500 --bind 127.0.0.1 -d web
