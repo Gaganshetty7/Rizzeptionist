@@ -1,5 +1,9 @@
+import asyncio
+import uuid
+
 from .config import LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL
 
+from pathlib import Path
 from fastapi import FastAPI
 from livekit import api
 from fastapi import HTTPException
@@ -14,9 +18,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Resolving Agent Directory Path for the sub process
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+AGENT_DIR = BASE_DIR / "agent"
+
+session_id = str(uuid.uuid4())[:8]
+
 @app.post("/api/session/start")
 async def start_session():
-    room_name = "clinic-reception"
+    room_name = session_id
 
     try:
         # Create Token
@@ -29,6 +39,19 @@ async def start_session():
             room_join=True,
             room=room_name,
         )).to_jwt()
+
+        # Create Sub Process for Agent soon after User token is created
+        proc = await asyncio.create_subprocess_exec(
+            "uv",
+            "run",
+            "python",
+            "-m",
+            "src.main",
+            room_name,
+            cwd = str(AGENT_DIR)
+        ) 
+
+        print("Bot process started:", proc.pid)
 
         return {
             "url": LIVEKIT_URL,
