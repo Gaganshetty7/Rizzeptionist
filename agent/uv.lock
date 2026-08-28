@@ -12,12 +12,14 @@ name = "agent"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "httpx" },
     { name = "pipecat-ai", extra = ["deepgram", "google", "livekit"] },
     { name = "python-dotenv" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "pipecat-ai", extras = ["deepgram", "google", "livekit", "silero"], specifier = ">=1.7.0" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
 ]

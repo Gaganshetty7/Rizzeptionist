@@ -21,3 +21,5 @@ GEMINI_API_KEY = get_required_env("GEMINI_API_KEY")
 LIVEKIT_API_KEY = get_required_env("LIVEKIT_API_KEY")
 LIVEKIT_API_SECRET = get_required_env("LIVEKIT_API_SECRET")
 LIVEKIT_URL = get_required_env("LIVEKIT_URL")
+
+SERVER_URL = get_required_env("SERVER_URL")

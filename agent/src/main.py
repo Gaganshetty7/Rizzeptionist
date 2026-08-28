@@ -1,7 +1,8 @@
 import asyncio
 import argparse
+import httpx
 
-from .config import DEEPGRAM_API_KEY, GEMINI_API_KEY, LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+from .config import DEEPGRAM_API_KEY, GEMINI_API_KEY, LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, SERVER_URL
 
 from livekit import api
 
@@ -50,6 +51,13 @@ async def run_agent(room_name:str):
     @transport.event_handler("on_connected")
     async def on_connected(transport):
         print(f"Bot connected to LiveKit room: {room_name}")
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{SERVER_URL}/api/session/ready",
+                params={"room_name": room_name},
+            )
+        print("Ready notification:", response.status_code)
 
     stt = DeepgramSTTService(
         api_key = DEEPGRAM_API_KEY
@@ -115,8 +123,8 @@ async def run_agent(room_name:str):
         )
 
     @transport.event_handler("on_participant_left")
-    async def on_participant_left(transport, participant_id):
-        print(f"Participant left: {participant_id}")
+    async def on_participant_left(transport, participant_id, reason):
+        print(f"Participant left: {participant_id} (reason: {reason})")
         await worker.cancel()
 
     runner = WorkerRunner(handle_sigint=True)
