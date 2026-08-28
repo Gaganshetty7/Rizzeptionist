@@ -22,10 +22,22 @@ app.add_middleware(
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 AGENT_DIR = BASE_DIR / "agent"
 
-session_id = str(uuid.uuid4())[:8]
 
+# Agent Health Monitor
+async def monitor_agent(process, room_name):
+    return_code = await process.wait()
+
+    if return_code != 0:
+        print(
+            f"Bot for room {room_name} crashed "
+            f"with exit code {return_code}"
+        )
+
+
+# Session Start Endpoint
 @app.post("/api/session/start")
 async def start_session():
+    session_id = str(uuid.uuid4())[:8]
     room_name = session_id
 
     try:
@@ -52,6 +64,10 @@ async def start_session():
         ) 
 
         print("Bot process started:", proc.pid)
+
+        asyncio.create_task(
+            monitor_agent(proc, room_name)
+        )
 
         return {
             "url": LIVEKIT_URL,

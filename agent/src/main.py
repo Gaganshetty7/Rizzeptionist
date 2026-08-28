@@ -46,6 +46,11 @@ async def run_agent(room_name:str):
         ),
     )
 
+    # Event Handler to check if the bot is connected to the room
+    @transport.event_handler("on_connected")
+    async def on_connected(transport):
+        print(f"Bot connected to LiveKit room: {room_name}")
+
     stt = DeepgramSTTService(
         api_key = DEEPGRAM_API_KEY
     )
