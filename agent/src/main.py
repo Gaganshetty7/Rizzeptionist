@@ -47,18 +47,6 @@ async def run_agent(room_name:str):
         ),
     )
 
-    # Event Handler to check if the bot is connected to the room
-    @transport.event_handler("on_connected")
-    async def on_connected(transport):
-        print(f"Bot connected to LiveKit room: {room_name}")
-
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{SERVER_URL}/api/session/ready",
-                params={"room_name": room_name},
-            )
-        print("Ready notification:", response.status_code)
-
     stt = DeepgramSTTService(
         api_key = DEEPGRAM_API_KEY
     )
@@ -111,6 +99,18 @@ async def run_agent(room_name:str):
             enable_metrics=True,
         ),
     )
+
+    # Event Handler to check if the bot is connected to the room
+    @transport.event_handler("on_connected")
+    async def on_connected(transport):
+        print(f"Bot connected to LiveKit room: {room_name}")
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{SERVER_URL}/api/session/ready",
+                params={"room_name": room_name},
+            )
+        print("Ready notification:", response.status_code)
     
     @transport.event_handler("on_first_participant_joined")
     async def on_first_participant_joined(transport, participant_id):

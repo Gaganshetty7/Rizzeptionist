@@ -26,6 +26,7 @@
 
         let room = null;
         let agentParticipant = null;
+        let currentRoomName = null;
 
         function setStatus(text) {
             status.textContent = text;
@@ -47,8 +48,11 @@
                     throw new Error("Failed to start session");
                 }
 
-                const { url, token, } = await response.json();
+                const { url, token, room_name } = await response.json();
 
+                currentRoomName = room_name;
+
+                // Create a client-side object to connect to the LiveKit room
                 room = new LivekitClient.Room();
 
                 // Receive the agent's audio track.
@@ -68,7 +72,7 @@
                     }
                 );
 
-                // Track whether the agent is actively speaking.
+                // Tracks active speakers and updates the status based on whether the agent is speaking.
                 room.on(
                     LivekitClient.RoomEvent.ActiveSpeakersChanged,
                     (speakers) => {
@@ -91,6 +95,7 @@
                     }
                 );
 
+                // End call if the agent disconnects.
                 room.on(
                     LivekitClient.RoomEvent.ParticipantDisconnected,
                     (participant) => {
@@ -105,6 +110,7 @@
                     }
                 );
 
+                // End call if the room is disconnected.
                 room.on(
                     LivekitClient.RoomEvent.Disconnected,
                     () => {
@@ -150,7 +156,20 @@
 
         hangUpButton.addEventListener("click", async () => {
             if (room) {
+                // Disconnects user from call, the Disconnected event handler will then clean up the UI states.
                 await room.disconnect();
+
+                // Clean up server-side session and stop the agent process.
+                if (currentRoomName) {
+                    await fetch(
+                        `${API_URL}/api/session/end/${currentRoomName}`,
+                        {
+                            method: "POST"
+                        }
+                    );
+
+                    currentRoomName = null;
+                }
             }
         });
     </script>
