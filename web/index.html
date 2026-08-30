@@ -124,6 +124,47 @@
                     }
                 );
 
+                // Handle server-sent error messages (e.g. bot crash notification)
+                room.on(
+                    LivekitClient.RoomEvent.DataReceived,
+                    async (payload, participant, kind, topic) => {
+                        if (topic === "session_error") {
+                            try {
+                                const message = JSON.parse(
+                                    new TextDecoder().decode(payload)
+                                );
+
+                                console.error(
+                                    "Session error received:",
+                                    message
+                                );
+
+                                const reasons = {
+                                    bot_crashed:
+                                        "The assistant crashed unexpectedly.",
+                                    bot_startup_timeout:
+                                        "The assistant failed to start.",
+                                };
+
+                                setStatus(
+                                    reasons[message.reason] ||
+                                        `Error: ${message.reason}`
+                                );
+
+                                // Disconnect after showing the error
+                                if (room) {
+                                    await room.disconnect();
+                                }
+                            } catch (e) {
+                                console.error(
+                                    "Failed to parse error message:",
+                                    e
+                                );
+                            }
+                        }
+                    }
+                );
+
                 await room.connect(url, token);
 
                 // Create the microphone with the required
