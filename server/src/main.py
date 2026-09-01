@@ -86,6 +86,9 @@ async def monitor_agent(process, room_name):
     if return_code != 0:
         session["status"] = "failed"
 
+        active_sessions.pop(room_name, None)
+        print(f"Session ended: {room_name}")
+
         await notify_failure(
             room_name=room_name,
             user_identity=session["user_identity"],
@@ -130,6 +133,9 @@ async def wait_for_agent_ready(room_name):
             # TODO: Use a separate termination reason instead of intentional_stop.
             session["intentional_stop"] = True
             process.terminate()
+
+        active_sessions.pop(room_name, None)
+        print(f"Session ended: {room_name}")
 
 
 
@@ -217,7 +223,6 @@ async def start_session():
             status_code=500,
             detail="Failed to generate LiveKit access token",
         )
-        print("Failed to generate LiveKit access token")
 
 # Session End Endpoint
 @app.post("/api/session/end/{room_name}")
