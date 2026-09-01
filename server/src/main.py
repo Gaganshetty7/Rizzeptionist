@@ -99,7 +99,7 @@ async def monitor_agent(process, room_name):
 
 # Agent Timeout Monitor
 async def wait_for_agent_ready(room_name):
-    await asyncio.sleep(10)
+    await asyncio.sleep(60)
 
     session = active_sessions.get(room_name)
 
@@ -144,6 +144,7 @@ async def agent_ready(room_name: str):
             status_code=404,
             detail="Session not found"
         )
+        print("Session not found to check if the agent is ready")
     
     session["status"] = "ready"
 
@@ -216,6 +217,7 @@ async def start_session():
             status_code=500,
             detail="Failed to generate LiveKit access token",
         )
+        print("Failed to generate LiveKit access token")
 
 # Session End Endpoint
 @app.post("/api/session/end/{room_name}")
@@ -244,17 +246,3 @@ async def end_session(room_name: str):
         "room_name": room_name,
     }
 
-# Session Status Endpoint
-@app.get("/api/session/status/{room_name}")
-async def session_status(room_name: str):
-    session = active_sessions.get(room_name)
-
-    if not session:
-        raise HTTPException(
-            status_code=404,
-            detail="Session not found"
-        )
-
-    return {
-        "status": session["status"]
-    }

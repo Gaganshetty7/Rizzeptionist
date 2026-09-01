@@ -18,7 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
 
     <script>
-        const API_URL = "http://127.0.0.1:8000";
+        const API_URL = "http://127.0.0.1:10000";
 
         const status = document.getElementById("status");
         const startButton = document.getElementById("startCall");
@@ -33,6 +33,7 @@
         }
 
         startButton.addEventListener("click", async () => {
+            let hasAgentSpoken = false;
             try {
                 startButton.disabled = true;
                 setStatus("Connecting...");
@@ -76,8 +77,9 @@
                 room.on(
                     LivekitClient.RoomEvent.ActiveSpeakersChanged,
                     (speakers) => {
+
+                        // During startup the agent always speaks first
                         if (!agentParticipant) {
-                            setStatus("Listening");
                             return;
                         }
 
@@ -87,11 +89,14 @@
                                 agentParticipant.identity
                         );
 
-                        setStatus(
-                            agentIsSpeaking
-                                ? "Agent speaking"
-                                : "Listening"
-                        );
+                        // If the agent starts speaking, set the status to "Agent speaking"
+                        // If the agent stops speaking, set the status to "Listening"
+                        if (agentIsSpeaking) {
+                            hasAgentSpoken = true;
+                            setStatus("Agent speaking");
+                        } else if (hasAgentSpoken) {
+                            setStatus("Listening");
+                        }
                     }
                 );
 
@@ -148,7 +153,7 @@
 
                                 setStatus(
                                     reasons[message.reason] ||
-                                        `Error: ${message.reason}`
+                                    `Error: ${message.reason}`
                                 );
 
                                 // Disconnect after showing the error
@@ -180,7 +185,7 @@
                     micTrack
                 );
 
-                setStatus("Listening");
+                setStatus("Waiting for agent...");
                 hangUpButton.disabled = false;
 
             } catch (error) {
