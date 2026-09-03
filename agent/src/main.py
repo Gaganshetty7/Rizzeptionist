@@ -47,7 +47,9 @@ async def run_agent(room_name:str):
         ),
     )
 
-    stt = None
+    stt = DeepgramSTTService(
+        api_key=DEEPGRAM_API_KEY
+    )
 
     llm = GoogleLLMService(
         api_key = GEMINI_API_KEY,
@@ -80,7 +82,11 @@ async def run_agent(room_name:str):
     pipeline = Pipeline(
         [
             transport.input(),
+            stt,
+            context_aggregator.user(),
+            llm,
             transport.output(),
+            context_aggregator.assistant()
         ]
     )
 
