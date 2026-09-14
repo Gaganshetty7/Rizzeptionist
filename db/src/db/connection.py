@@ -1,21 +1,10 @@
-from sqlalchemy.engine import make_url
+from db.config import DATABASE_URL
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker 
 from sqlalchemy.ext.asyncio.engine import create_async_engine, AsyncEngine
 
 def create_engine(database_url: str) -> AsyncEngine:
-    url = make_url(database_url)
-
-    query = dict(url.query)
-    query.pop("sslmode", None)
-    query.pop("channel_binding", None)
-
-    url = url.set(
-        drivername="postgresql+asyncpg",
-        query=query,
-    )
-
     return create_async_engine(
-        url,
+        database_url,
         connect_args={"ssl": "require"},
         pool_pre_ping=True,
     )
