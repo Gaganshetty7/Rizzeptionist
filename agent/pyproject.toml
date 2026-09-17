@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "appointments",
     "db",
     "httpx>=0.28.1",
     "pipecat-ai[deepgram,google,livekit,silero]>=1.7.0",
@@ -13,3 +14,4 @@ dependencies = [
 
 [tool.uv.sources]
 db = { path = "../db", editable = true }
+appointments = { path = "../appointments", editable = true }

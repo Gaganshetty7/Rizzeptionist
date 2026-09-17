@@ -170,6 +170,21 @@ wheels = [
 ]
 
 [[package]]
+name = "appointments"
+version = "0.1.0"
+source = { editable = "../appointments" }
+dependencies = [
+    { name = "db" },
+    { name = "dotenv" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "db", editable = "../db" },
+    { name = "dotenv", specifier = ">=0.9.9" },
+]
+
+[[package]]
 name = "asyncpg"
 version = "0.31.0"
 source = { registry = "https://pypi.org/simple" }
@@ -254,6 +269,17 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.19.2" },
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.52" },
+]
+
+[[package]]
+name = "dotenv"
+version = "0.9.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dotenv" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b2/b7/545d2c10c1fc15e48653c91efde329a790f2eecfbbf2bd16003b5db2bab0/dotenv-0.9.9-py2.py3-none-any.whl", hash = "sha256:29cf74a087b31dafdb5a446b6d7e11cbce8ed2741540e2339c69fbef92c94ce9", size = 1892, upload-time = "2025-02-19T22:15:01.647Z" },
 ]
 
 [[package]]
@@ -871,6 +897,7 @@ name = "server"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "appointments" },
     { name = "db" },
     { name = "fastapi" },
     { name = "livekit-api" },
@@ -880,6 +907,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "appointments", editable = "../appointments" },
     { name = "db", editable = "../db" },
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "livekit-api", specifier = ">=1.2.0" },

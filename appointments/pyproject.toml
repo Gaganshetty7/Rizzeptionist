@@ -1,0 +1,20 @@
+[project]
+name = "appointments"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Gagan R Shetty", email = "gaganrshetty07@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "db",
+    "dotenv>=0.9.9",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.9,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+db = { path = "../db", editable = true }

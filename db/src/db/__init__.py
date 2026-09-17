@@ -10,6 +10,6 @@ __all__ = [
     "Patient",
     "DATABASE_URL",
     "create_engine",
-    "create_session_factory"
+    "create_session_factory",
     "get_or_create_patient"
 ]

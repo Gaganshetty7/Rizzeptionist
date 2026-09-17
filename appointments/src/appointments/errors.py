@@ -1,0 +1,10 @@
+class ErrorCode:
+    SLOT_UNAVAILABLE = "slot_unavailable"
+    SLOT_IN_PAST = "slot_in_past"
+    DOCTOR_NOT_FOUND = "doctor_not_found"
+    PATIENT_NOT_FOUND = "patient_not_found"
+    APPOINTMENT_NOT_FOUND = "appointment_not_found"
+    APPOINTMENT_ALREADY_CANCELLED = "appointment_already_cancelled"
+    APPOINTMENT_ALREADY_COMPLETED = "appointment_already_completed"
+    INVALID_APPOINTMENT_TIME = "invalid_appointment_time"
+    INVALID_RESCHEDULE_TIME = "invalid_reschedule_time"
