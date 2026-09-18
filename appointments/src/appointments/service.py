@@ -203,6 +203,7 @@ async def book_appointment(
                     slot_id=slot.id,
                     status="scheduled",
                 )
+                session.add(appointment)
 
                 # Force INSERT now so the appointment ID is available and any unique-constraint race is detected before commit.
                 # Basically, SQLAlchemy buffers all operations locally and sends them to PostgreSQL in a batch at the end of the transaction
