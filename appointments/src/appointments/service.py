@@ -1,7 +1,10 @@
 from datetime import date, datetime, time, timedelta, timezone
-from unittest import result
 
+from appointments.errors import ErrorCode
+from db.models import Appointment
+from db.repositories.patients import get_or_create_patient
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from db import (
     DATABASE_URL,
@@ -125,14 +128,108 @@ async def check_availability(
 
 
 async def book_appointment(
-    doctor_id: int,
-    patient_id: int,
-    appointment_time,
+    slot_id: int,
+    patient_name: str,
+    patient_phone: str,
 ) -> AppointmentResult:
     """
     Book an appointment after validating the requested slot.
+
+    The slot is locked for the duration of the transaction so concurrent
+    booking attempts cannot both reserve the same slot.
     """
-    raise NotImplementedError
+    now = datetime.now(timezone.utc)
+
+    try:
+        async with _session_factory() as session:
+            async with session.begin():
+
+                # Lock the slot row so concurrent bookings for the same slot are serialized.
+                result = await session.execute(
+                    select(DoctorSlot)
+                    .where(DoctorSlot.id == slot_id)
+                    .with_for_update()
+                )
+                slot = result.scalar_one_or_none()
+
+                # Slot doesn't exist
+                if slot is None:
+                    return AppointmentResult.failure(
+                        ErrorCode.SLOT_UNAVAILABLE,
+                        "The requested slot is unavailable",
+                    )
+
+                # Slot has been already booked
+                if slot.status != "available":
+                    return AppointmentResult.failure(
+                        ErrorCode.SLOT_UNAVAILABLE,
+                        "The requested slot is unavailable",
+                    )
+
+                # SLot has already passed
+                if slot.start_time <= now:
+                    return AppointmentResult.failure(
+                        ErrorCode.SLOT_IN_PAST,
+                        "The requested appointment slot is in the past.",
+                    )
+
+                # Fetch doctor details required for the confirmation response.
+                doctor_result = await session.execute(
+                    select(Doctor)
+                    .where(Doctor.id == slot.doctor_id)
+                )
+                doctor = doctor_result.scalar_one_or_none()
+
+                if doctor is None:
+                    return AppointmentResult.failure(
+                        ErrorCode.DOCTOR_NOT_FOUND,
+                        "The doctor for this slot could not be found.",
+                    )
+
+                # Create patient if not exists using the repository method
+                patient = await get_or_create_patient(
+                    session=session,
+                    phone_number=patient_phone,
+                    name=patient_name
+                )
+
+                # Reserve slot
+                slot.status = "booked"
+
+                # Create the appointment in the same transaction.
+                appointment = Appointment(
+                    patient_id=patient.id,
+                    doctor_id=doctor.id,
+                    slot_id=slot.id,
+                    status="scheduled",
+                )
+
+                # Force INSERT now so the appointment ID is available and any unique-constraint race is detected before commit.
+                # Basically, SQLAlchemy buffers all operations locally and sends them to PostgreSQL in a batch at the end of the transaction
+                # Hence, When you manually insert a session.flush() in between, you force that batch to leave your application and go to PostgreSQL early, without closing the transaction.
+                # This is necessary because we need the appointment ID, which is generated centrally by PostgreSQL's global sequence tracker
+                await session.flush()
+
+                data = {
+                    "appointment_id": appointment.id,
+                    "doctor_name": doctor.name,
+                    "date": slot.start_time.date().isoformat(),
+                    "start_time": slot.start_time.isoformat(),
+                    "end_time": slot.end_time.isoformat(),
+                }
+
+                return AppointmentResult.ok(
+                    data,
+                    "Appointment booked successfully.",
+                )
+    except IntegrityError:
+        # The unique constraint on appointments.slot_id is the final concurrency safety net.
+        # Any such race causes the whole transaction to roll back, leaving the slot available and no orphaned appointment.
+        return AppointmentResult.failure(
+            ErrorCode.SLOT_UNAVAILABLE,
+            "The requested slot is unavailable.",
+        )
+
 
 
 async def cancel_appointment(

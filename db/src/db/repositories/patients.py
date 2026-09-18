@@ -28,11 +28,7 @@ async def get_or_create_patient(
     patient = result.scalar_one_or_none()
 
     if patient is not None:
-        await session.commit()
         return patient
-
-    # Another request already created this patient.
-    await session.rollback()
 
     result = await session.execute(
         select(Patient).where(Patient.phone_number == phone_number)
