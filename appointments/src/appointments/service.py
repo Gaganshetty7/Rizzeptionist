@@ -1,7 +1,7 @@
 from datetime import date, datetime, time, timedelta, timezone
 
 from appointments.errors import ErrorCode
-from db.models import Appointment
+from db.models import Appointment, Patient
 from db.repositories.patients import get_or_create_patient
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -126,7 +126,6 @@ async def check_availability(
         )
     
 
-
 async def book_appointment(
     slot_id: int,
     patient_name: str,
@@ -232,6 +231,67 @@ async def book_appointment(
         )
 
 
+async def find_appointments(
+    patient_phone: str,
+) -> AppointmentResult:
+    # Find all upcoming scheduled appointments for a patient using their phone number.
+
+    now = datetime.now(timezone.utc)
+
+    async with _session_factory() as session:
+        # Check that the patient exists first.
+        patient_result = await session.execute(
+            select(Patient).where(
+                Patient.phone_number == patient_phone.strip()
+            )
+        )
+        patient = patient_result.scalar_one_or_none()
+
+        if patient is None:
+            return AppointmentResult.failure(
+                ErrorCode.PATIENT_NOT_FOUND,
+                "No patient found with that phone number.",
+            )
+
+        result = await session.execute(
+            select(
+                Appointment,
+                Doctor,
+                DoctorSlot,
+            )
+            .join(Patient, Patient.id == Appointment.patient_id)
+            .join(Doctor, Doctor.id == Appointment.doctor_id)
+            .join(DoctorSlot, DoctorSlot.id == Appointment.slot_id)
+            .where(
+                Patient.phone_number == patient_phone.strip(),
+                Appointment.status == "scheduled",
+                DoctorSlot.start_time > now,
+            )
+            .order_by(DoctorSlot.start_time)
+        )
+
+        rows = result.all()
+
+        data = [
+            {
+                "appointment_id": appointment.id,
+                "patient_id": appointment.patient_id,
+                "doctor_id": appointment.doctor_id,
+                "doctor_name": doctor.name,
+                "specialty": doctor.specialty,
+                "slot_id": slot.id,
+                "start_time": slot.start_time,
+                "end_time": slot.end_time,
+                "status": appointment.status,
+            }
+            for appointment, doctor, slot in rows
+        ]
+
+    return AppointmentResult.ok(
+            data,
+            "Appointments found successfully.",
+        )
+
 
 async def cancel_appointment(
     appointment_id: int,
@@ -239,7 +299,75 @@ async def cancel_appointment(
     """
     Cancel an existing appointment.
     """
-    raise NotImplementedError
+    now = datetime.now(timezone.utc)
+
+    async with _session_factory() as session:
+        async with session.begin():
+            # Lock the appointment so concurrent operations cannot modify it at the same time.
+            
+            result = await session.execute(
+                select(Appointment)
+                .where(Appointment.id == appointment_id)
+                .with_for_update()
+            )
+
+            appointment = result.scalar_one_or_none()
+
+            if appointment is None:
+                return AppointmentResult.failure(
+                    ErrorCode.APPOINTMENT_NOT_FOUND,
+                    "Appointment not found.",
+                )
+
+            if appointment.status == "cancelled":
+                return AppointmentResult.failure(
+                    ErrorCode.APPOINTMENT_ALREADY_CANCELLED,
+                    "Appointment is already cancelled.",
+                )
+
+            if appointment.status == "completed":
+                return AppointmentResult.failure(
+                    ErrorCode.APPOINTMENT_ALREADY_COMPLETED,
+                    "Appointment has already been completed.",
+                )
+
+            # Lock the slot as well because cancellation changes the slot's availability.
+            result = await session.execute(
+                select(DoctorSlot)
+                .where(DoctorSlot.id == appointment.slot_id)
+            )
+
+            slot = result.scalar_one()
+
+            # A scheduled appointment whose slot has already started cannot be cancelled.
+            if slot.start_time <= now:
+                return AppointmentResult.failure(
+                    ErrorCode.SLOT_IN_PAST,
+                    "The appointment is already in the past.",
+                )
+
+            # Cancel appointment.
+            appointment.status = "cancelled"
+            # Release slot so it can be booked again.
+            slot.status = "available"
+
+            await session.flush()
+
+            data = {
+                    "appointment_id": appointment.id,
+                    "patient_id": appointment.patient_id,
+                    "doctor_id": appointment.doctor_id,
+                    "slot_id": slot.id,
+                    "start_time": slot.start_time,
+                    "end_time": slot.end_time,
+                    "status": appointment.status,
+                    "slot_status": slot.status,
+            }
+
+            return AppointmentResult.ok(
+                data,
+                "Appointment cancelled successfully.",
+            )
 
 
 async def reschedule_appointment(
