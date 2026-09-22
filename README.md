@@ -8,51 +8,28 @@ A voice-agent application consisting of a Pipecat voice agent, a Python backend 
 - `server/` — Backend API, appointment logic and database access
 - `web/` — HTML/CSS/JavaScript frontend
 
-## Local Setup
+## How to Run
 
-> **Prerequisites:** Install [uv](https://docs.astral.sh/uv/getting-started/installation/) before proceeding.
+> **Prerequisites:** [Python 3.12+](https://www.python.org/) and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+> Copy `.env.example` to `.env` and fill in your API keys before starting.
 
-### Agent
-
-```bash
-cd agent
-cp .env.example .env   # fill in your API keys
-uv sync
-uv run python src/main.py
-```
-
-### Server
-
-```bash
-cd server
-cp .env.example .env   # fill in your config values
-uv sync
-uv run python src/main.py
-```
-
-### Web
-
-The frontend is plain HTML/JS — no build step required. Open `web/index.html` directly in your browser, or serve it with any static file server:
-
-```bash
-# e.g. using Python's built-in server
-cd web
-python -m http.server 8080
-```
-
-## Running
-
-Start each service in a separate shell:
+### Terminal
 
 ```bash
 # Server
 cd server && uv sync && uv run uvicorn src.main:app --reload
 
-# Agent
-cd agent && uv sync && uv run python -m src.main clinic-reception
-
-# Frontend
+# Frontend (separate terminal)
 python3 -m http.server 5500 --bind 127.0.0.1 -d web
 ```
 
-Then open http://127.0.0.1:5500
+Then open http://127.0.0.1:5500. The voice agent is spawned automatically when you start a session.
+
+### Docker
+
+```bash
+docker build -t rizzeptionist .
+docker run --rm -p 10000:10000 --env-file .env rizzeptionist
+```
+
+Serve the `web/` frontend separately with the `python3 -m http.server` command above.

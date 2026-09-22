@@ -124,7 +124,50 @@ async def check_availability(
             data,
             "Available slots found successfully.",
         )
-    
+
+
+async def _get_available_future_slot(
+    session,
+    slot_id: int,
+    now: datetime,
+) -> tuple[DoctorSlot | None, str | None, str | None]:
+    """
+    Lock a slot and validate that it is available and in the future.
+
+    The caller must be inside an active transaction.
+    """
+
+    result = await session.execute(
+        select(DoctorSlot)
+        .where(DoctorSlot.id == slot_id)
+        .with_for_update()
+    )
+
+    slot = result.scalar_one_or_none()
+
+    if slot is None:
+        return (
+            None,
+            ErrorCode.SLOT_UNAVAILABLE,
+            "The requested slot is unavailable",
+        )
+
+    if slot.status != "available":
+        return (
+            None,
+            ErrorCode.SLOT_UNAVAILABLE,
+            "The requested slot is unavailable",
+        )
+
+    if slot.start_time <= now:
+        return (
+            None,
+            ErrorCode.SLOT_IN_PAST,
+            "The requested appointment slot is in the past.",
+        )
+
+    return slot, None, None
+
 
 async def book_appointment(
     slot_id: int,
@@ -144,32 +187,16 @@ async def book_appointment(
             async with session.begin():
 
                 # Lock the slot row so concurrent bookings for the same slot are serialized.
-                result = await session.execute(
-                    select(DoctorSlot)
-                    .where(DoctorSlot.id == slot_id)
-                    .with_for_update()
+                slot, error_code, error_message = await _get_available_future_slot(
+                    session=session,
+                    slot_id=slot_id,
+                    now=now,
                 )
-                slot = result.scalar_one_or_none()
 
-                # Slot doesn't exist
                 if slot is None:
                     return AppointmentResult.failure(
-                        ErrorCode.SLOT_UNAVAILABLE,
-                        "The requested slot is unavailable",
-                    )
-
-                # Slot has been already booked
-                if slot.status != "available":
-                    return AppointmentResult.failure(
-                        ErrorCode.SLOT_UNAVAILABLE,
-                        "The requested slot is unavailable",
-                    )
-
-                # SLot has already passed
-                if slot.start_time <= now:
-                    return AppointmentResult.failure(
-                        ErrorCode.SLOT_IN_PAST,
-                        "The requested appointment slot is in the past.",
+                        error_code,
+                        error_message,
                     )
 
                 # Fetch doctor details required for the confirmation response.
@@ -372,9 +399,152 @@ async def cancel_appointment(
 
 async def reschedule_appointment(
     appointment_id: int,
-    new_appointment_time,
+    new_slot_id: int,
 ) -> AppointmentResult:
     """
-    Move an existing appointment to a new time slot.
+    Reschedule a scheduled appointment to a different available future slot.
+
+    Rescheduling to a slot belonging to a different doctor is allowed.
+    The new slot determines the appointment's new doctor.
+
+    All changes happen inside one transaction.
     """
-    raise NotImplementedError
+    now = datetime.now(timezone.utc)
+
+    try:
+        async with _session_factory() as session:
+            async with session.begin():
+
+                # Lock the appointment first.
+                result = await session.execute(
+                    select(Appointment)
+                    .where(Appointment.id == appointment_id)
+                    .with_for_update()
+                )
+
+                appointment = result.scalar_one_or_none()
+
+                if appointment is None:
+                    return AppointmentResult.failure(
+                        ErrorCode.APPOINTMENT_NOT_FOUND,
+                        "Appointment not found.",
+                    )
+
+                if appointment.status == "cancelled":
+                    return AppointmentResult.failure(
+                        ErrorCode.APPOINTMENT_ALREADY_CANCELLED,
+                        "Appointment is already cancelled.",
+                    )
+
+                if appointment.status == "completed":
+                    return AppointmentResult.failure(
+                        ErrorCode.APPOINTMENT_ALREADY_COMPLETED,
+                        "Appointment has already been completed.",
+                    )
+
+                # Lock both slots in a consistent order to prevent deadlocks when two appointments are rescheduled to each other's slots.
+                # Can be done by ordering old and new slot id's in ascending order
+
+                # A aquires lock on slot 1 waits for 2, 
+                # but for B instead of acquiring lock on 2 and wait for 1,
+                # the sorting of id's makes it apply lock on 1 first and then 2, 
+                # but to be able to apply lock on 1 it must be freed by A first, which breaks circular wait
+                slot_ids = sorted({appointment.slot_id, new_slot_id})
+                result = await session.execute(
+                    select(DoctorSlot)
+                    .where(DoctorSlot.id.in_(slot_ids))
+                    .order_by(DoctorSlot.id)
+                    .with_for_update()
+                )
+                locked_slots = {
+                    slot.id: slot for slot in result.scalars().all()
+                }
+
+                old_slot = locked_slots.get(appointment.slot_id)
+
+                if old_slot is None:
+                    return AppointmentResult.failure(
+                        ErrorCode.SLOT_UNAVAILABLE,
+                        "The current appointment slot could not be found.",
+                    )
+
+                # Same slot is not a real reschedule.
+                if old_slot.id == new_slot_id:
+                    return AppointmentResult.failure(
+                        ErrorCode.SLOT_UNAVAILABLE,
+                        "The new slot must be different from the current slot.",
+                    )
+
+                # A scheduled appointment whose current slot has passed should not be moved.
+                if old_slot.start_time <= now:
+                    return AppointmentResult.failure(
+                        ErrorCode.SLOT_IN_PAST,
+                        "The current appointment slot is in the past.",
+                    )
+
+                new_slot = locked_slots.get(new_slot_id)
+
+                if new_slot is None:
+                    return AppointmentResult.failure(
+                        ErrorCode.SLOT_UNAVAILABLE,
+                        "The requested slot is unavailable",
+                    )
+
+                if new_slot.status != "available":
+                    return AppointmentResult.failure(
+                        ErrorCode.SLOT_UNAVAILABLE,
+                        "The requested slot is unavailable",
+                    )
+
+                if new_slot.start_time <= now:
+                    return AppointmentResult.failure(
+                        ErrorCode.SLOT_IN_PAST,
+                        "The requested appointment slot is in the past.",
+                    )
+
+                # Fetch the new doctor's name for the response.
+                doctor_result = await session.execute(
+                    select(Doctor)
+                    .where(Doctor.id == new_slot.doctor_id)
+                )
+
+                doctor = doctor_result.scalar_one_or_none()
+
+                if doctor is None:
+                    return AppointmentResult.failure(
+                        ErrorCode.DOCTOR_NOT_FOUND,
+                        "The doctor for the new slot could not be found.",
+                    )
+
+                # Claim the new slot.
+                new_slot.status = "booked"
+
+                # Release the old slot.
+                old_slot.status = "available"
+
+                # Update the appointment.
+                appointment.slot_id = new_slot.id
+                appointment.doctor_id = new_slot.doctor_id
+
+                await session.flush()
+
+                data = {
+                    "appointment_id": appointment.id,
+                    "doctor_name": doctor.name,
+                    "date": new_slot.start_time.date().isoformat(),
+                    "start_time": new_slot.start_time.isoformat(),
+                    "end_time": new_slot.end_time.isoformat(),
+                }
+
+                return AppointmentResult.ok(
+                    data,
+                    "Appointment rescheduled successfully.",
+                )
+
+    except IntegrityError:
+        return AppointmentResult.failure(
+            ErrorCode.SLOT_UNAVAILABLE,
+            "The requested slot is unavailable.",
+        )
+
+
