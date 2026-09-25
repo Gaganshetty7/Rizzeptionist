@@ -25,4 +25,4 @@ RUN cd /app/server && uv sync --frozen
 RUN cd /app/agent && uv sync --frozen
 
 # Temporary RUN command for testing using port 10000
-CMD ["uv", "run", "--directory", "/app/server", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "10000"]
+CMD ["sh", "-c", "uv run --directory /app/server uvicorn src.main:app --host 0.0.0.0 --port ${PORT}"]

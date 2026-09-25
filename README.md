@@ -20,6 +20,7 @@ A voice-agent application consisting of a Pipecat voice agent, a Python backend 
 cd server && uv sync && uv run uvicorn src.main:app --reload
 
 # Frontend (separate terminal)
+# Double check for proper API_URL based on whether running locally or from render
 python3 -m http.server 5500 --bind 127.0.0.1 -d web
 ```
 
@@ -29,6 +30,7 @@ Then open http://127.0.0.1:5500. The voice agent is spawned automatically when y
 
 ```bash
 docker build -t rizzeptionist .
+# Use Host port as 8000 if running locally
 docker run --rm -p 10000:10000 --env-file .env rizzeptionist
 ```
 

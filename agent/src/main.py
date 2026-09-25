@@ -2,7 +2,7 @@ import asyncio
 import argparse
 import httpx
 
-from .config import DEEPGRAM_API_KEY, GEMINI_API_KEY, LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, SERVER_URL
+from .config import DEEPGRAM_API_KEY, GEMINI_API_KEY, LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, PORT
 
 from livekit import api
 
@@ -107,7 +107,7 @@ async def run_agent(room_name:str):
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{SERVER_URL}/api/session/ready",
+                f"http://127.0.0.1:{PORT}/api/session/ready",
                 params={"room_name": room_name},
             )
         print("Ready notification:", response.status_code)
