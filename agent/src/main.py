@@ -1,6 +1,11 @@
 import asyncio
 import argparse
 import httpx
+import sys
+
+from loguru import logger
+logger.remove(0)
+logger.add(sys.stderr, level="DEBUG")
 
 from .config import DEEPGRAM_API_KEY, GEMINI_API_KEY, LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, PORT
 
