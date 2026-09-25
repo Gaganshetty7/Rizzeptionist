@@ -24,5 +24,8 @@ COPY agent ./agent
 RUN cd /app/server && uv sync --frozen
 RUN cd /app/agent && uv sync --frozen
 
+# Pre-download NLTK data required by the agent to prevent runtime timeouts and missing resource errors
+RUN cd /app/agent && uv run python -c "import nltk; nltk.download('punkt_tab')"
+
 # Temporary RUN command for testing using port 10000
 CMD ["sh", "-c", "uv run --directory /app/server uvicorn src.main:app --host 0.0.0.0 --port ${PORT}"]
