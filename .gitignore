@@ -16,3 +16,7 @@ env/
 Rizzeptionist_pending.txt
 Project_overview.md
 PROJECT_KT.md
+
+# logs
+agent/agent.log
+*.log

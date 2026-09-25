@@ -81,12 +81,17 @@ async def monitor_agent(process, room_name):
 
     if session["intentional_stop"]:
         print(f"Bot for room {room_name} stopped intentionally")
+        if "log_file" in session:
+            session["log_file"].close()
         return
 
     if return_code != 0:
         session["status"] = "failed"
 
-        active_sessions.pop(room_name, None)
+        popped_session = active_sessions.pop(room_name, None)
+        if popped_session and "log_file" in popped_session:
+            popped_session["log_file"].close()
+
         print(f"Session ended: {room_name}")
 
         await notify_failure(
@@ -134,7 +139,9 @@ async def wait_for_agent_ready(room_name):
             session["intentional_stop"] = True
             process.terminate()
 
-        active_sessions.pop(room_name, None)
+        popped_session = active_sessions.pop(room_name, None)
+        if popped_session and "log_file" in popped_session:
+            popped_session["log_file"].close()
         print(f"Session ended: {room_name}")
 
 
@@ -181,12 +188,15 @@ async def start_session():
             room=room_name,
         )).to_jwt()
 
+        log_file = open(AGENT_DIR / "agent.log", "w")
+
         active_sessions[room_name] = {
             "process": None,
             "status": "starting",
             "intentional_stop": False,
             # LiveKit's send_data() needs a destination identity, The room name alone isn't enough.
             "user_identity": user_identity,
+            "log_file": log_file,
         }
 
         # Create Sub Process for Agent soon after User token is created
@@ -197,7 +207,9 @@ async def start_session():
             "-m",
             "src.main",
             room_name,
-            cwd = str(AGENT_DIR)
+            cwd = str(AGENT_DIR),
+            stdout=log_file,
+            stderr=asyncio.subprocess.STDOUT
         ) 
 
         print("Bot process started:", proc.pid)
@@ -242,7 +254,9 @@ async def end_session(room_name: str):
         process.terminate()
         await process.wait()
 
-    active_sessions.pop(room_name, None)
+    popped_session = active_sessions.pop(room_name, None)
+    if popped_session and "log_file" in popped_session:
+        popped_session["log_file"].close()
 
     print(f"Session ended: {room_name}")
 
