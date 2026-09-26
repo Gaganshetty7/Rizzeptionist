@@ -24,8 +24,10 @@ COPY agent ./agent
 RUN cd /app/server && uv sync --frozen
 RUN cd /app/agent && uv sync --frozen
 
-# Pre-download NLTK data required by the agent to prevent runtime timeouts and missing resource errors
-RUN cd /app/agent && uv run python -c "import nltk; nltk.download('punkt_tab')"
+# NLTK's default runtime download from GitHub hangs infinitely due to ISP packet drops, causing silent timeouts; baking it in via CDN resolves this.
+# We download from a CDN mirror and extract it directly into /root/nltk_data/tokenizers, exactly where NLTK expects to find it. 
+RUN mkdir -p /root/nltk_data/tokenizers && \
+    python -c "import urllib.request, zipfile, io; zipfile.ZipFile(io.BytesIO(urllib.request.urlopen('https://cdn.jsdelivr.net/gh/nltk/nltk_data@gh-pages/packages/tokenizers/punkt_tab.zip').read())).extractall('/root/nltk_data/tokenizers')"
 
 # Temporary RUN command for testing using port 10000
 CMD ["sh", "-c", "uv run --directory /app/server uvicorn src.main:app --host 0.0.0.0 --port ${PORT}"]
