@@ -146,11 +146,11 @@ async def wait_for_agent_ready(room_name):
 async def agent_ready(room_name: str):
     session = active_sessions.get(room_name)
     if not session:
+        print("Session not found to check if the agent is ready")
         raise HTTPException(
             status_code=404,
             detail="Session not found"
         )
-        print("Session not found to check if the agent is ready")
     
     session["status"] = "ready"
 
