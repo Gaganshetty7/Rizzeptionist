@@ -31,7 +31,7 @@ Then open http://127.0.0.1:5500. The voice agent is spawned automatically when y
 ```bash
 docker build -t rizzeptionist .
 # Use Host port as 8000 if running locally
-docker run --rm -p 10000:10000 --env-file .env rizzeptionist
+docker run --rm -p 8000:8000 --env-file .env rizzeptionist
 ```
 
 Serve the `web/` frontend separately with the `python3 -m http.server` command above.

@@ -29,5 +29,5 @@ RUN cd /app/agent && uv sync --frozen
 RUN mkdir -p /root/nltk_data/tokenizers && \
     python -c "import urllib.request, zipfile, io; zipfile.ZipFile(io.BytesIO(urllib.request.urlopen('https://cdn.jsdelivr.net/gh/nltk/nltk_data@gh-pages/packages/tokenizers/punkt_tab.zip').read())).extractall('/root/nltk_data/tokenizers')"
 
-# Temporary RUN command for testing using port 10000
+# RUN command
 CMD ["sh", "-c", "uv run --directory /app/server uvicorn src.main:app --host 0.0.0.0 --port ${PORT}"]
